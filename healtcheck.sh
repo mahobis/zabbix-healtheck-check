@@ -6,7 +6,7 @@ CF_API_EMAIL=""
 ZABBIX_URL="https://zabbix.com/api_jsonrpc.php"
 AUTH_TOKEN=""
 
-# Gauti host ID pagal pavadinimą "zabbix.betgames.tv"
+# Gauti host ID pagal pavadinimą 
 HOST_ID=""
 # file whit domains that responded
 FILE="domain-exist.txt"
