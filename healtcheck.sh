@@ -3,11 +3,13 @@
 CF_API_TOKEN=""
 CF_API_EMAIL=""
 # Zabbix serverio informacija
-ZABBIX_URL="https://zabbix.com/api_jsonrpc.php"
+ZABBIX_URL=""
 AUTH_TOKEN=""
 
-# Gauti host ID pagal pavadinimą 
+# Gauti host ID pagal pavadinimą"
 HOST_ID=""
+
+
 # file whit domains that responded
 FILE="domain-exist.txt"
 
@@ -27,6 +29,9 @@ if [[ ! -f "$FILEALL" ]]; then
 else
         rm -rf $FILEALL
 fi
+
+
+
 
 # Function to get all zones (domains) associated with the account
 get_all_zones() {
@@ -87,7 +92,7 @@ done < "$FILEALL"
 
 # Check if host ID was obtained
 if [[ -z "$HOST_ID" || "$HOST_ID" == "null" ]]; then
-    echo "Nepavyko rasti host ID"
+    echo "Nepavyko rasti host ID serveriui"
     exit 1
 else
     echo "Host ID rastas: $HOST_ID"
@@ -161,4 +166,87 @@ while IFS= read -r domain; do
 
 done < "$FILE"
 
-echo "Web scenarijai sukurti Zabbix serveryje"
+echo "Web scenarijai sukurti Zabbix serveryje: zabbix.betgames.tv-web"
+
+
+# Function to get Host Name by Host ID
+get_host_name() {
+    local host_id=$1
+    host_name=$(curl -s -X POST -H "Content-Type: application/json" -d '{
+        "jsonrpc": "2.0",
+        "method": "host.get",
+        "params": {
+            "hostids": "'"$host_id"'",
+            "output": ["host"]
+        },
+        "auth": "'"$AUTH_TOKEN"'",
+        "id": 1
+    }' "$ZABBIX_URL" | jq -r '.result[0].host')
+
+    echo "$host_name"
+}
+
+# Function to create a trigger
+create_trigger() {
+    local scenario_name=$1
+    local trigger_name="${scenario_name} - Health Check Failed"
+
+    # Escape special characters in scenario_name to avoid JSON parsing errors
+    local escaped_scenario_name=$(echo "$scenario_name" | sed 's/\"/\\\"/g')
+
+    # Get the host name dynamically by host ID
+    HOST_NAME=$(get_host_name "$HOST_ID")
+
+    # Format the expression according to the Zabbix requirement
+    local expression="last(/$HOST_NAME/web.test.fail[$escaped_scenario_name])<>0"
+
+    # Check if the trigger already exists
+    trigger_exists=$(curl -s -X POST -H "Content-Type: application/json" -d '{
+        "jsonrpc": "2.0",
+        "method": "trigger.get",
+        "params": {
+            "filter": {
+                "description": "'"$trigger_name"'"
+            },
+            "auth": "'"$AUTH_TOKEN"'",
+            "id": 1
+        }
+    }' "$ZABBIX_URL" | jq -r '.result | length')
+
+    # If trigger does not exist, create it
+    if [[ "$trigger_exists" -eq 0 ]]; then
+        echo "Creating trigger for scenario: $escaped_scenario_name"
+
+        # Ensure the expression is correctly formatted with quotes and escape characters
+        json_data=$(jq -n \
+            --arg description "$trigger_name" \
+            --arg expression "$expression" \
+            --arg auth "$AUTH_TOKEN" \
+            '{
+                jsonrpc: "2.0",
+                method: "trigger.create",
+                params: {
+                    description: $description,
+                    expression: $expression,
+                    priority: 4
+                },
+                auth: $auth,
+                id: 1
+            }')
+
+        # Send request to Zabbix API using curl to create the trigger
+        curl -s -X POST -H "Content-Type: application/json" -d "$json_data" "$ZABBIX_URL"
+    else
+        echo "Trigger for scenario: $escaped_scenario_name already exists."
+    fi
+}
+
+# Read each domain from the file and create a trigger
+while IFS= read -r domain; do
+    scenario_name="${domain} Healthcheck"
+    cleaned_scenario_name=$(echo "$scenario_name" | sed 's|https://||')
+
+    create_trigger "$cleaned_scenario_name"
+done < "$FILE"
+
+echo "Process complete!"
