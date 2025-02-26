@@ -6,7 +6,7 @@ CF_API_EMAIL=""
 ZABBIX_URL=""
 AUTH_TOKEN=""
 
-# Gauti host ID pagal pavadinimą"
+# Get host ID by name"
 HOST_ID=""
 
 
@@ -53,7 +53,7 @@ for domain in "${DOMAINS[@]}"; do
     -H "Content-Type: application/json" | jq -r '.result[0].id')
 
     if [[ -z "$ZONE_ID" || "$ZONE_ID" == "null" ]]; then
-        echo "❌ Failed to find Zone ID for domain: $domain"
+        echo "Failed to find Zone ID for domain: $domain"
         continue
     else
         echo "Zone ID for $domain: $ZONE_ID"
@@ -92,15 +92,15 @@ done < "$FILEALL"
 
 # Check if host ID was obtained
 if [[ -z "$HOST_ID" || "$HOST_ID" == "null" ]]; then
-    echo "Nepavyko rasti host ID serveriui"
+    echo "Failed to find host ID for the server"
     exit 1
 else
-    echo "Host ID rastas: $HOST_ID"
+    echo "Host ID found: $HOST_ID"
 fi
 
 # Check if the file exists
 if [[ ! -f "$FILE" ]]; then
-    echo "Failas domain-exist.txt nerastas!"
+    echo "File not found domain-exist.txt !"
     exit 1
 fi
 
@@ -166,7 +166,7 @@ while IFS= read -r domain; do
 
 done < "$FILE"
 
-echo "Web scenarijai sukurti Zabbix serveryje: zabbix.betgames.tv-web"
+echo "Web scenarios created on the Zabbix server"
 
 
 # Function to get Host Name by Host ID
